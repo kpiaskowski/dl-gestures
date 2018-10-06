@@ -64,6 +64,16 @@ class TFRecordWriter:
 
         return chunks, total_tfrecords
 
+    def _print_processing_stats(self, processed_items, total_items, dataset_name, suffix):
+        """
+        Prints statistics related to generating data.
+        :param processed_items: number of items processed so far
+        :param total_items: total number of items
+        :param suffix: root path to the directory where datasets will be stored
+        :param dataset_name: name of the dataset, only for printing purposes
+        """
+        print('\rGenerating TFRecords: {} of {}, dataset: {}, type: {}'.format(processed_items, total_items, dataset_name, suffix.upper()), end='')
+
     def write_tfrecord(self, data, tfrecord_ids, record_counter, lock, parent_path, total_tfrecords, dataset_name, suffix):
         """
         Writes a chunk of data into a number of tfrecords.
@@ -76,12 +86,12 @@ class TFRecordWriter:
         :param suffix: root path to the directory where datasets will be stored
         :param dataset_name: name of the dataset, only for printing purposes
         """
-        data_length = len(data)
+        data_length = _print_processing_statslen(data)
         for i in tfrecord_ids:
             # increment tfrecord counter
             with lock:
                 record_counter.value += 1
-            print('Generating TFRecords: {} of {}, dataset: {}, type: {}'.format(record_counter.value, total_tfrecords, dataset_name, suffix.upper()))
+            self._print_processing_stats(record_counter.value, total_tfrecords, dataset_name, suffix)
 
             # find data range for current tfrecord id
             current_data = data[i * self.record_length: (i + 1) * self.record_length]
@@ -133,6 +143,7 @@ class TFRecordWriter:
             processes.append(proc)
             proc.start()
         for proc in processes: proc.join()
+        print()
 
 
 class IsolatedSequenceProvider:
