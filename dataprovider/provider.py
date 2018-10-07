@@ -2,6 +2,7 @@ import math
 import os
 from multiprocessing import cpu_count, Value, Lock, Process
 
+import numpy as np
 import tensorflow as tf
 
 
@@ -86,7 +87,7 @@ class TFRecordWriter:
         :param suffix: root path to the directory where datasets will be stored
         :param dataset_name: name of the dataset, only for printing purposes
         """
-        data_length = _print_processing_statslen(data)
+        data_length = len(data)
         for i in tfrecord_ids:
             # increment tfrecord counter
             with lock:
@@ -122,10 +123,13 @@ class TFRecordWriter:
         """
         Creates train and val datasets in the format of TF records.
         :param data: list of pairs (dir_name/sequence_name, class_id/class_ids)
-        :param suffix: root path to the directory where datasets will be stored
+        :param suffix: root path to the directory where datasets will be stored, must be either 'train' or 'val'
         :param dataset_name: name of the dataset, only for printing purposes
         :param num_parallel_runs: number of processes to run simultaneously to speed up work. Default: number of CPU cores
         """
+        if not (suffix == 'train' or suffix == 'val'):
+            raise Exception('Suffix must be either "train" or "val"!')
+
         # make train and val directories
         parent_path = os.path.join(self.root_dir, suffix)
         os.makedirs(parent_path, exist_ok=True)
@@ -142,23 +146,26 @@ class TFRecordWriter:
             proc = Process(target=self.write_tfrecord, args=(data, chunk, record_counter, lock, parent_path, total_tfrecords, dataset_name, suffix))
             processes.append(proc)
             proc.start()
-        for proc in processes: proc.join()
+        for proc in processes:
+            proc.join()
         print()
 
 
 class IsolatedSequenceProvider:
     """Class for providing data for isolated sequences (not continuous)"""
 
-    def __init__(self, seq_h, seq_w, seq_l):
+    def __init__(self, seq_h, seq_w, seq_l, batch_size):
         """
         Initializes DataProvider
         :param seq_h: the height the images in sequence will be resized to
         :param seq_w: the width the images in sequence will be resized to
         :param seq_l: the length the sequence will be scaled to
+        :param batch_size: size of batch
         """
         self.seq_h = seq_h
         self.seq_w = seq_w
         self.seq_l = seq_l
+        self.batch_size = batch_size
 
     def _match_names_labels(self, **kwargs):
         """
@@ -167,14 +174,64 @@ class IsolatedSequenceProvider:
         """
         raise NotImplementedError
 
-    def _define_dataset(self, data):
+    def _parse_tfrecord(self, example_proto):
+        """
+        Parses and decodes a single example from tfrecord
+        :param example_proto: tfrecord from TFRecordDataset
+        :return: sequence tensor, class_id
+        """
+        features = {"sequence_bytes": tf.FixedLenFeature([], tf.string),
+                    "length": tf.FixedLenFeature([], tf.int64),
+                    "width": tf.FixedLenFeature([], tf.int64),
+                    "class_id": tf.FixedLenFeature([], tf.int64),
+                    "height": tf.FixedLenFeature([], tf.int64)}
+        parsed_features = tf.parse_single_example(example_proto, features)
+
+        # load and set shape to sequence tensor
+        length = tf.cast(parsed_features['length'], tf.int32)
+        height = tf.cast(parsed_features['height'], tf.int32)
+        width = tf.cast(parsed_features['width'], tf.int32)
+        raw_sequence = tf.decode_raw(parsed_features['sequence_bytes'], tf.uint8)
+        sequence_shape = tf.stack([length, height, width, 3])
+        sequence_tensor = tf.reshape(raw_sequence, sequence_shape)
+
+        # parse class_id
+        class_id = tf.cast(parsed_features['class_id'], tf.int32)
+        return sequence_tensor, class_id
+
+    def _define_dataset_pipeline(self, tfrecord_paths):
         """
         Defines TF Dataset API for given data
+        :param num_parallel: number of parallel calls of 'map' functions in the dataset
+        :param tfrecord_paths: paths of tfrecords
         """
-        raise NotImplementedError
+        num_parallel = cpu_count()
 
-    def dataset_handles(self):
+        # define datast pipeline
+        dataset = tf.data.TFRecordDataset(tfrecord_paths)
+        dataset = dataset.map(self._parse_tfrecord, num_parallel_calls=num_parallel)
+
+        dataset = dataset.prefetch(self.batch_size)
+        dataset = dataset.batch(self.batch_size)
+        return dataset
+
+    def create_dataset_handles(self, root_dir):
         """
-        Creates and returns dataset handles.
+        Creates and returns TF Dataset API handles.
+        :param root_dir: root directory of the dataset, containing 2 subfolders: 'train' and 'val', each containing multiple tfrecords
         """
-        raise NotImplementedError
+        # find paths to the tfrecords
+        train_path = os.path.join(root_dir, 'train')
+        val_path = os.path.join(root_dir, 'val')
+        train_records = [os.path.join(train_path, record_name) for record_name in os.listdir(train_path)]
+        val_records = [os.path.join(val_path, record_name) for record_name in os.listdir(val_path)]
+
+        train_dataset = self._define_dataset_pipeline(train_records)
+
+        # todo make val dataset
+        # todo make feedable iters
+
+        iterator = train_dataset.make_initializable_iterator()
+        sequence_tensor, class_id = iterator.get_next()
+
+        return sequence_tensor, class_id, iterator

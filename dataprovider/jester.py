@@ -1,5 +1,5 @@
 import os
-
+import tensorflow as tf
 import cv2
 import numpy as np
 
@@ -7,7 +7,7 @@ from dataprovider.provider import IsolatedSequenceProvider, TFRecordWriter
 
 
 class JesterProvider(IsolatedSequenceProvider):
-    def __init__(self, data_dir, csv_dir, seq_h, seq_w, seq_l):
+    def __init__(self, data_dir, csv_dir, seq_h, seq_w, seq_l, batch_size):
         """
         Initializes Jester dataset.
         :param data_dir: path to root directory with data
@@ -15,8 +15,9 @@ class JesterProvider(IsolatedSequenceProvider):
         :param seq_h: the height the images in sequence will be resized to
         :param seq_w: the width the images in sequence will be resized to
         :param seg_l: the length the sequence will be scaled to
+        :param batch_size: size of batch
         """
-        super().__init__(seq_h, seq_w, seq_l)
+        super().__init__(seq_h, seq_w, seq_l, batch_size)
         self._data_dir = data_dir
 
         # read classes available in the Jester dataset
@@ -81,5 +82,12 @@ class JesterProvider(IsolatedSequenceProvider):
 if __name__ == '__main__':
     provider = JesterProvider(data_dir='../../jester/data',
                               csv_dir='../../jester/csv',
-                              seq_h=100, seq_w=150, seq_l=60)
-    provider.generate_tfrecords('jester_data')
+                              seq_h=100, seq_w=150, seq_l=60,
+                              batch_size=1)
+    sequence_tensor, class_id, iterator = provider.create_dataset_handles('jester_data')
+
+    with tf.Session() as sess:
+        sess.run(iterator.initializer)
+
+        seq, cls = sess.run([sequence_tensor, class_id])
+        print(seq.shape)
