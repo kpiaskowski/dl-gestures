@@ -1,7 +1,8 @@
 import os
-import tensorflow as tf
+
 import cv2
 import numpy as np
+import tensorflow as tf
 
 from dataprovider.provider import IsolatedSequenceProvider, TFRecordWriter
 
@@ -79,19 +80,25 @@ class JesterProvider(IsolatedSequenceProvider):
         writer.generate_tfrecords(self._val_data, 'val', 'Jester')
 
 
+# only for looking how to run dataset and get data
 if __name__ == '__main__':
     provider = JesterProvider(data_dir='../../jester/data',
                               csv_dir='../../jester/csv',
                               seq_h=100, seq_w=150, seq_l=60,
-                              batch_size=1)
-    sequence_tensor, class_id, iterator = provider.create_dataset_handles('jester_data')
+                              batch_size=3)
+    sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles('jester_data')
 
     with tf.Session() as sess:
-        sess.run(iterator.initializer)
+        # initialize datasets
+        train_handle = sess.run(train_iterator.string_handle())
+        val_handle = sess.run(val_iterator.string_handle())
 
-        seq, cls = sess.run([sequence_tensor, class_id])
-        print(seq.shape)
-        for s in seq:
-            for i, img in enumerate(s):
-                cv2.imshow('', img)
-                cv2.waitKey(100)
+        # train
+        for i in range(10):
+            seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: train_handle})
+            print('train', seq.shape, cls)
+
+        # val
+        for i in range(10):
+            seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
+            print('val', seq.shape, cls)

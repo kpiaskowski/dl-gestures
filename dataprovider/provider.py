@@ -367,12 +367,14 @@ class IsolatedSequenceProvider:
         dataset = dataset.shuffle(10)
         dataset = dataset.prefetch(self.batch_size)
         dataset = dataset.batch(self.batch_size)
+        dataset = dataset.repeat()
         return dataset
 
     def create_dataset_handles(self, root_dir):
         """
         Creates and returns TF Dataset API handles.
         :param root_dir: root directory of the dataset, containing 2 subfolders: 'train' and 'val', each containing multiple tfrecords
+        :return: sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle
         """
         # find paths to the tfrecords
         train_path = os.path.join(root_dir, 'train')
@@ -383,10 +385,11 @@ class IsolatedSequenceProvider:
         train_dataset = self._define_dataset_pipeline(train_records)
         val_dataset = self._define_dataset_pipeline(val_records)
 
-        # todo make val dataset
-        # todo make feedable iters
-
-        iterator = train_dataset.make_initializable_iterator()
+        handle = tf.placeholder(tf.string, shape=[])
+        iterator = tf.data.Iterator.from_string_handle(handle, train_dataset.output_types, train_dataset.output_shapes)
         sequence_tensor, class_id = iterator.get_next()
 
-        return sequence_tensor, class_id, iterator
+        train_iterator = train_dataset.make_one_shot_iterator()
+        val_iterator = val_dataset.make_one_shot_iterator()
+
+        return sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle
