@@ -91,8 +91,7 @@ if __name__ == '__main__':
 
         seq, cls = sess.run([sequence_tensor, class_id])
         print(seq.shape)
-        # for s in seq:
-        #     for i, img in enumerate(s):
-        #         print('frame', i)
-        #         cv2.imshow('', img)
-        #         cv2.waitKey(100)
+        for s in seq:
+            for i, img in enumerate(s):
+                cv2.imshow('', img)
+                cv2.waitKey(100)

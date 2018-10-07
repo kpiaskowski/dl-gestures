@@ -167,7 +167,10 @@ class IsolatedSequenceProvider:
         self.seq_l = seq_l
         self.batch_size = batch_size
 
+        # params for random cropping
         self.min_side_ratio = 0.9  # minimal lengths of sides of cropped subtensors are at least 90% of original sides
+        self.min_length_ratio = 0.8  # minimum percentage length of temporally stretched sequence
+        self.max_length_ratio = 1.2  # maximum percentage length of temporally stretched sequence
 
     def _match_names_labels(self, **kwargs):
         """
@@ -209,17 +212,24 @@ class IsolatedSequenceProvider:
         resized_sequence = tf.image.resize_images(sequence_tensor, size=(self.seq_h, self.seq_w))
         return resized_sequence, class_id
 
-    def _resize_temporally(self, sequence_tensor, class_id):
+    def _stretch_temporally(self, sequence_tensor, class_id):
         """
-        Resizes sequence tensor in temporal dimension (l), using nearest neighbor interpolation. Sequence is described as a tensor of shape [l, h, w, c]. Function
+        Stretches sequence temporally in range 0.8...1.2, using nearest neighbor interpolation. Sequence is described as a tensor of shape [l, h, w, c]. Function
         tf.image.resize_images works only on dimensions h and w, so we need to permute the order of dimensions to make a hackish resizing, then revert the
         operation to get the initial sequence. Note, that both h and w, are constant (resized earlier to self.h, self.w), so we know them beforehand and might
         use a hack of resizing w to the same, identical w.
         :return: sequence resized temporally, unchanged class_id
         """
+        # find new length
+        l = tf.to_float(tf.shape(sequence_tensor)[0])
+        min_l = tf.cast(self.min_length_ratio * l, tf.int32)
+        max_l = tf.cast(self.max_length_ratio * l, tf.int32)
+        new_l = tf.random_uniform([1], min_l, max_l, tf.int32)[0]  # rando_uniform requires 1D tensor as shape, so we extract only 0th index
+
         # swap [l, h, w, c] to  [h, l, w, c]
         sequence = tf.transpose(sequence_tensor, perm=[1, 0, 2, 3])
-        sequence = tf.image.resize_images(sequence, size=(self.seq_l, self.seq_w), method=ResizeMethod.NEAREST_NEIGHBOR)
+        sequence = tf.image.resize_images(sequence, size=(new_l, self.seq_w), method=ResizeMethod.NEAREST_NEIGHBOR)
+
         # swap back to [l, h, w, c]
         sequence = tf.transpose(sequence, perm=[1, 0, 2, 3])
         return sequence, class_id
@@ -337,6 +347,7 @@ class IsolatedSequenceProvider:
 
         # define datast pipeline
         dataset = tf.data.TFRecordDataset(tfrecord_paths)
+        dataset = dataset.shuffle(300)
         dataset = dataset.map(self._parse_tfrecord, num_parallel_calls=num_parallel)
         dataset = dataset.map(self._standardize, num_parallel_calls=num_parallel)
 
@@ -344,14 +355,16 @@ class IsolatedSequenceProvider:
         dataset = dataset.map(self._random_contrast_change, num_parallel_calls=num_parallel)
         dataset = dataset.map(self._random_brightness_change, num_parallel_calls=num_parallel)
 
-        # random cropping
+        # random cropping and stretching
         dataset = dataset.map(self._random_spatial_crop, num_parallel_calls=num_parallel)
         dataset = dataset.map(self._random_temporal_crop, num_parallel_calls=num_parallel)
+        dataset = dataset.map(self._stretch_temporally, num_parallel_calls=num_parallel)
 
         # resize to fixed dimensions
         dataset = dataset.map(self._resize_spatially, num_parallel_calls=num_parallel)
-        dataset = dataset.map(self._resize_temporally, num_parallel_calls=num_parallel)
+        dataset = dataset.map(self._pad_zeros, num_parallel_calls=num_parallel)
 
+        dataset = dataset.shuffle(10)
         dataset = dataset.prefetch(self.batch_size)
         dataset = dataset.batch(self.batch_size)
         return dataset
@@ -368,6 +381,7 @@ class IsolatedSequenceProvider:
         val_records = [os.path.join(val_path, record_name) for record_name in os.listdir(val_path)]
 
         train_dataset = self._define_dataset_pipeline(train_records)
+        val_dataset = self._define_dataset_pipeline(val_records)
 
         # todo make val dataset
         # todo make feedable iters
