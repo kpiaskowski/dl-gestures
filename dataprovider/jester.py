@@ -101,4 +101,4 @@ if __name__ == '__main__':
         # val
         for i in range(10):
             seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
-            print('val', seq.shape, cls)
+            print('validation', seq.shape, cls)
