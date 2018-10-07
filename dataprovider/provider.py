@@ -2,8 +2,8 @@ import math
 import os
 from multiprocessing import cpu_count, Value, Lock, Process
 
-import numpy as np
 import tensorflow as tf
+from tensorflow.python.ops.image_ops_impl import ResizeMethod
 
 
 class TFRecordWriter:
@@ -199,6 +199,54 @@ class IsolatedSequenceProvider:
         class_id = tf.cast(parsed_features['class_id'], tf.int32)
         return sequence_tensor, class_id
 
+    def _resize_spatially(self, sequence_tensor, class_id):
+        """
+        Resizes sequence tensor in spatial dimensions (h, w), using bilinear interpolation
+        :return: sequence resized spatially, unchanged class_id
+        """
+        resized_sequence = tf.image.resize_images(sequence_tensor, size=(self.seq_h, self.seq_w))
+        return resized_sequence, class_id
+
+    def _resize_temporally(self, sequence_tensor, class_id):
+        """
+        Resizes sequence tensor in temporal dimension (l), using nearest neighbor interpolation. Sequence is described as a tensor of shape [l, h, w, c]. Function
+        tf.image.resize_images works only on dimensions h and w, so we need to permute the order of dimensions to make a hackish resizing, then revert the
+        operation to get the initial sequence. Note, that both h and w, are constant (resized earlier to self.h, self.w), so we know them beforehand and might
+        use a hack of resizing w to the same, identical w.
+        :return: sequence resized temporally, unchanged class_id
+        """
+        # swap [l, h, w, c] to  [h, l, w, c]
+        sequence = tf.transpose(sequence_tensor, perm=[1, 0, 2, 3])
+        sequence = tf.image.resize_images(sequence, size=(self.seq_l, self.seq_w), method=ResizeMethod.NEAREST_NEIGHBOR)
+        # swap back to [l, h, w, c]
+        sequence = tf.transpose(sequence, perm=[1, 0, 2, 3])
+        return sequence, class_id
+
+    def _standardize(self, sequence_tensor, class_id):
+        """
+        Scales image to <0...1>, then standardizes it. Standardization is based on tf.image.per_image_standardization (but allows tensors of arbitrary shape),
+        so it should be numerically safe.
+        :return: standardized sequence, unchanged class_id
+        """
+        # scale sequence_tensor to 0 ... 1
+        sequence_tensor = sequence_tensor / 255
+
+        # compute statistics
+        mean = tf.reduce_mean(sequence_tensor)
+        variance = tf.reduce_mean(tf.square(sequence_tensor)) - tf.square(tf.reduce_mean(sequence_tensor))
+        variance = tf.nn.relu(variance)  # avoid nagative values for numerical safety
+        stddev = tf.sqrt(variance)
+
+        # Apply a minimum normalization that protects us against uniform images (taken from tf.image.per_image_standardization)
+        num_pixels = tf.reduce_prod(tf.shape(sequence_tensor))  # number of pixels in image
+        min_stddev = tf.math.rsqrt(tf.cast(num_pixels, tf.float32))  # 1/sqrt, 'fast reciprocal square root'
+        pixel_value_scale = tf.maximum(stddev, min_stddev)
+        pixel_value_offset = mean
+        standardized_sequence = tf.subtract(sequence_tensor, pixel_value_offset)
+        standardized_sequence = tf.div(standardized_sequence, pixel_value_scale)
+
+        return standardized_sequence, class_id
+
     def _define_dataset_pipeline(self, tfrecord_paths):
         """
         Defines TF Dataset API for given data
@@ -210,6 +258,9 @@ class IsolatedSequenceProvider:
         # define datast pipeline
         dataset = tf.data.TFRecordDataset(tfrecord_paths)
         dataset = dataset.map(self._parse_tfrecord, num_parallel_calls=num_parallel)
+        dataset = dataset.map(self._resize_spatially, num_parallel_calls=num_parallel)
+        dataset = dataset.map(self._resize_temporally, num_parallel_calls=num_parallel)
+        dataset = dataset.map(self._standardize, num_parallel_calls=num_parallel)
 
         dataset = dataset.prefetch(self.batch_size)
         dataset = dataset.batch(self.batch_size)

@@ -82,7 +82,7 @@ class JesterProvider(IsolatedSequenceProvider):
 if __name__ == '__main__':
     provider = JesterProvider(data_dir='../../jester/data',
                               csv_dir='../../jester/csv',
-                              seq_h=100, seq_w=150, seq_l=60,
+                              seq_h=100, seq_w=150, seq_l=30,
                               batch_size=1)
     sequence_tensor, class_id, iterator = provider.create_dataset_handles('jester_data')
 
@@ -91,3 +91,8 @@ if __name__ == '__main__':
 
         seq, cls = sess.run([sequence_tensor, class_id])
         print(seq.shape)
+        for s in seq:
+            for i, img in enumerate(s):
+                print('frame', i)
+                cv2.imshow('', img) # todo move scaling to separate function
+                cv2.waitKey(100)
