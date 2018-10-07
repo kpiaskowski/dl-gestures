@@ -167,6 +167,8 @@ class IsolatedSequenceProvider:
         self.seq_l = seq_l
         self.batch_size = batch_size
 
+        self.min_side_ratio = 0.9  # minimal lengths of sides of cropped subtensors are at least 90% of original sides
+
     def _match_names_labels(self, **kwargs):
         """
         Matches filenames with corresponding labels
@@ -247,6 +249,84 @@ class IsolatedSequenceProvider:
 
         return standardized_sequence, class_id
 
+    def _pad_zeros(self, sequence_tensor, class_id):
+        """
+        Pads sequence with zeros (as opposite to temporal stretching). If sequence is longer than desired length, it cuts it.
+        :return: standardized sequence, unchanged class_id
+        """
+        shape = tf.shape(sequence_tensor)
+        l = shape[0]
+        h = shape[1]
+        w = shape[2]
+        c = shape[3]
+
+        # tf hack to avoid using ifs - note that remainder might be of length = 0
+        remainder = tf.maximum(self.seq_l - l, 0)
+        padding = tf.zeros([remainder, h, w, c], tf.float32)
+        sequence = tf.concat([sequence_tensor, padding], axis=0)
+
+        # slice sequence (again tf hack, sequence after slicing might not change at all)
+        sequence = sequence[:self.seq_l, :, :, :]
+        return sequence, class_id
+
+    def _random_contrast_change(self, sequence_tensor, class_id):
+        """
+        Apply random contrast changes, by pixelwise multiplication of sequence and random noise in range(0.9...1.1)
+        :return: noisy sequence, unchanged class_id
+        """
+        noise = tf.random_uniform(tf.shape(sequence_tensor), minval=0.9, maxval=1.1)
+        noisy_sequence = tf.multiply(sequence_tensor, noise)
+        return noisy_sequence, class_id
+
+    def _random_brightness_change(self, sequence_tensor, class_id):
+        """
+        Apply random brightnesschanges, by pixelwise addition of sequence and random noise in range(-0.1...0.1)
+        :return: noisy sequence, unchanged class_id
+        """
+        noise = tf.random_uniform(tf.shape(sequence_tensor), minval=-0.1, maxval=0.1)
+        noisy_sequence = tf.add(sequence_tensor, noise)
+        return noisy_sequence, class_id
+
+    def _random_spatial_crop(self, sequence_tensor, class_id):
+        """
+        Apply random cropping in spatial dimension.
+        :return: sequence cropped spatially, unchanged class_id
+        """
+        shape = tf.shape(sequence_tensor)
+        l = shape[0]
+        h = shape[1]
+        w = shape[2]
+        c = shape[3]
+        min_h = tf.cast(self.min_side_ratio * tf.to_float(h), tf.int32)
+        min_w = tf.cast(self.min_side_ratio * tf.to_float(w), tf.int32)
+
+        # generate new, random dimensions of sequence tensor. [0] is for extracting only a single scalar. It is needed, because random uniform requires 1D tensor as shape
+        new_h = tf.random_uniform(shape=[1], minval=min_h, maxval=h, dtype=tf.int32)[0]
+        new_w = tf.random_uniform(shape=[1], minval=min_w, maxval=w, dtype=tf.int32)[0]
+
+        # apply cropping
+        cropped_sequence = tf.random_crop(sequence_tensor, [l, new_h, new_w, c])
+        return cropped_sequence, class_id
+
+    def _random_temporal_crop(self, sequence_tensor, class_id):
+        """
+        Apply random cropping in temporal dimension.
+        :return: sequence cropped spatially, unchanged class_id
+        """
+        shape = tf.shape(sequence_tensor)
+        l = shape[0]
+        h = shape[1]
+        w = shape[2]
+        c = shape[3]
+        min_l = tf.cast(self.min_side_ratio * tf.to_float(l), tf.int32)
+
+        # generate new, random dimension of sequence tensor. [0] is for extracting only a single scalar. It is needed, because random uniform requires 1D tensor as shape
+        new_l = tf.random_uniform(shape=[1], minval=min_l, maxval=l, dtype=tf.int32)[0]
+
+        # apply cropping
+        cropped_sequence = tf.random_crop(sequence_tensor, [new_l, h, w, c])
+        return cropped_sequence, class_id
+
     def _define_dataset_pipeline(self, tfrecord_paths):
         """
         Defines TF Dataset API for given data
@@ -258,9 +338,19 @@ class IsolatedSequenceProvider:
         # define datast pipeline
         dataset = tf.data.TFRecordDataset(tfrecord_paths)
         dataset = dataset.map(self._parse_tfrecord, num_parallel_calls=num_parallel)
+        dataset = dataset.map(self._standardize, num_parallel_calls=num_parallel)
+
+        # apply random perturbations
+        dataset = dataset.map(self._random_contrast_change, num_parallel_calls=num_parallel)
+        dataset = dataset.map(self._random_brightness_change, num_parallel_calls=num_parallel)
+
+        # random cropping
+        dataset = dataset.map(self._random_spatial_crop, num_parallel_calls=num_parallel)
+        dataset = dataset.map(self._random_temporal_crop, num_parallel_calls=num_parallel)
+
+        # resize to fixed dimensions
         dataset = dataset.map(self._resize_spatially, num_parallel_calls=num_parallel)
         dataset = dataset.map(self._resize_temporally, num_parallel_calls=num_parallel)
-        dataset = dataset.map(self._standardize, num_parallel_calls=num_parallel)
 
         dataset = dataset.prefetch(self.batch_size)
         dataset = dataset.batch(self.batch_size)
