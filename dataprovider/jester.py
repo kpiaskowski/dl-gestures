@@ -2,9 +2,8 @@ import os
 import tensorflow as tf
 import cv2
 import numpy as np
-from tensorflow.python.framework.errors_impl import DataLossError
-
-from dataprovider.provider import IsolatedSequenceProvider, TFRecordWriter
+import argparse
+from provider import IsolatedSequenceProvider, TFRecordWriter
 
 
 class JesterProvider(IsolatedSequenceProvider):
@@ -57,7 +56,7 @@ class JesterProvider(IsolatedSequenceProvider):
             lines = [parse_csv_line(line) for line in f.readlines()]  # (sequence path, class id) for each line
             return lines
 
-    def read_sequence(self, dir_name):
+    def _read_sequence(self, dir_name):
         """
         Reads content of the sequence under given dir name and converts it to tensor
         :param dir_name: a path to the directory with sequence images
@@ -74,7 +73,7 @@ class JesterProvider(IsolatedSequenceProvider):
         :param root_dir: root directory, where 'train' and 'validation' data will be stored.
         """
         # 100 sequences per single TFRecord
-        writer = TFRecordWriter(root_dir, record_length=100, seq_reading_func=self.read_sequence, is_isolated=True)
+        writer = TFRecordWriter(root_dir, record_length=100, seq_reading_func=self._read_sequence, is_isolated=True)
 
         writer.generate_tfrecords(self._train_data, 'train', 'Jester')
         writer.generate_tfrecords(self._val_data, 'val', 'Jester')
@@ -87,21 +86,29 @@ if __name__ == '__main__':
                               seq_h=100, seq_w=150, seq_l=60,
                               batch_size=3)
 
-    # generation
-    # provider.generate_tfrecords('jester_data')
+    parser = argparse.ArgumentParser(description='Generate TFRecords related to the Jester dataset')
+    parser.add_argument('--data_dir', help='path to the data where parent folder, where Jester folders with png images are stored', default='../../jester/data')
+    parser.add_argument('--csv_dir', help='path to the data where parent folder, where Jester csv files are stored', default='../../jester/csv')
+    parser.add_argument('--tfrecords_path', help='a path where TFRecords will be stored')
+    args = parser.parse_args()
 
-    sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles('jester_data')
+    if args.tfrecords_path is not None:
+        provider.generate_tfrecords(args.tfrecords_path)
 
-    with tf.Session() as sess:
-        # initialize datasets
-        train_handle = sess.run(train_iterator.string_handle())
-        val_handle = sess.run(val_iterator.string_handle())
-
-        # train
-        for i in range(50):
-            seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: train_handle})
-            print('train', i, seq.shape, cls)
-        # val
-        for i in range(50):
-            seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
-            print('validation', i, seq.shape, cls)
+    # uncomment to check how to fetch data from dataset (and verify wheter it works)
+    # data_dir = "/media/kpiaskowski/Seagate Backup Plus Drive/Karol_datasets/jester_data"
+    # sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
+    #
+    # with tf.Session() as sess:
+    #     # initialize datasets
+    #     train_handle = sess.run(train_iterator.string_handle())
+    #     val_handle = sess.run(val_iterator.string_handle())
+    #
+    #     # train
+    #     for i in range(5):
+    #         seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: train_handle})
+    #         print('train', i, seq.shape, cls)
+    #     # val
+    #     for i in range(5):
+    #         seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
+    #         print('validation', i, seq.shape, cls)

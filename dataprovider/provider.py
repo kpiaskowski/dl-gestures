@@ -51,7 +51,7 @@ class TFRecordWriter:
         :return: a nested list of data chunks, total number of tf_records
         """
         # Based on the length of data and the length of single tfrecord, compute total number of tf_records
-        data_length = 1200  # len(data) # todo
+        data_length = len(data)
         total_tfrecords = math.ceil(data_length / self.record_length)
 
         # create a list of tfrecord ids
@@ -420,3 +420,10 @@ class IsolatedSequenceProvider:
         val_iterator = val_dataset.make_one_shot_iterator()
 
         return sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle
+
+    def generate_tfrecords(self, root_dir):
+        """
+        Generates data in the form of TF records
+        :param root_dir: root directory, where 'train' and 'validation' data will be stored.
+        """
+        raise NotImplementedError
