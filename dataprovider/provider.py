@@ -200,6 +200,10 @@ class IsolatedSequenceProvider:
         self.min_length_ratio = 0.8  # minimum percentage length of temporally stretched sequence
         self.max_length_ratio = 1.2  # maximum percentage length of temporally stretched sequence
 
+        # params that need to be computed in child classes
+        self._train_data = None
+        self._val_data = None
+
     def _match_names_labels(self, **kwargs):
         """
         Matches filenames with corresponding labels
@@ -421,9 +425,20 @@ class IsolatedSequenceProvider:
 
         return sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle
 
-    def generate_tfrecords(self, root_dir):
+    def _read_sequence(self, path):
         """
-        Generates data in the form of TF records
-        :param root_dir: root directory, where 'train' and 'validation' data will be stored.
+        Reads content of the sequence under given path and converts it to sequence tensor
         """
         raise NotImplementedError
+
+    def generate_tfrecords(self, root_dir, dataset_name):
+        """
+        # Generates data in the form of TF records
+        # :param dataset_name: name of the dataset, just for printing purposes
+        # :param root_dir: root directory, where 'train' and 'validation' data will be stored.
+        """
+        # 100 sequences per single TFRecord
+        writer = TFRecordWriter(root_dir, record_length=100, seq_reading_func=self._read_sequence, is_isolated=True)
+
+        writer.generate_tfrecords(self._train_data, 'train', dataset_name)
+        writer.generate_tfrecords(self._val_data, 'val', dataset_name)

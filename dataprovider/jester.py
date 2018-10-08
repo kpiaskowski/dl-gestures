@@ -67,6 +67,7 @@ class JesterProvider(IsolatedSequenceProvider):
         sequence_tensor = np.array(images, dtype=np.uint8)
         return sequence_tensor
 
+
 # only for looking how to run dataset and get data
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate TFRecords related to the Jester dataset')
@@ -81,10 +82,10 @@ if __name__ == '__main__':
                               batch_size=3)
 
     if args.tfrecords_path is not None:
-        provider.generate_tfrecords(args.tfrecords_path)
+        provider.generate_tfrecords(args.tfrecords_path, 'Jester')
 
-    # uncomment to check how to fetch data from dataset (and verify wheter it works)
-    # data_dir = "/media/kpiaskowski/Seagate Backup Plus Drive/Karol_datasets/jester_data"
+    # # uncomment to check how to fetch data from dataset (and verify wheter it works)
+    # data_dir = "jester"
     # sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
     #
     # with tf.Session() as sess:
@@ -100,20 +101,3 @@ if __name__ == '__main__':
     #     for i in range(5):
     #         seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
     #         print('validation', i, seq.shape, cls)
-
-
-"""
-def generate_tfrecords(self, root_dir, train_data, val_data, dataset_name):
-"""
-# Generates data in the form of TF records
-# :param train_data: training data, as list of pairs (path, class_id), where path could be utilized by self.read_sequence
-# :param val_data: validation data, as list of pairs (path, class_id), where path could be utilized by self.read_sequence
-# :param dataset_name: name of the dataset, just for printing purposes
-# :param root_dir: root directory, where 'train' and 'validation' data will be stored.
-"""
-# 100 sequences per single TFRecord
-writer = TFRecordWriter(root_dir, record_length=100, read_sequence=self.read_sequence, is_isolated=self.is_isolated)
-
-writer.generate_tfrecords(train_data, 'train', dataset_name)
-writer.generate_tfrecords(val_data, 'val', dataset_name)
-"""
