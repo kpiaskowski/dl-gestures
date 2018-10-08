@@ -51,7 +51,7 @@ class TFRecordWriter:
         :return: a nested list of data chunks, total number of tf_records
         """
         # Based on the length of data and the length of single tfrecord, compute total number of tf_records
-        data_length = 2000  # len(data) # todo
+        data_length = 1200  # len(data) # todo
         total_tfrecords = math.ceil(data_length / self.record_length)
 
         # create a list of tfrecord ids
@@ -75,7 +75,7 @@ class TFRecordWriter:
         """
         print('\rGenerating TFRecords: {} of {}, dataset: {}, type: {}'.format(processed_items, total_items, dataset_name, suffix.upper()), end='')
 
-    def write_tfrecord(self, data, tfrecord_ids, record_counter, lock, parent_path, total_tfrecords, dataset_name, suffix):
+    def write_tfrecord(self, data, tfrecord_ids, record_counter, lock, parent_path, total_tfrecords, dataset_name, suffix, existing_records):
         """
         Writes a chunk of data into a number of tfrecords.
         :param data: list of pairs (sequence tensor, class_id/class_ids)
@@ -86,6 +86,7 @@ class TFRecordWriter:
         :param total_tfrecords: total number of tfrecords to be made
         :param suffix: root path to the directory where datasets will be stored
         :param dataset_name: name of the dataset, only for printing purposes
+        :param existing_records: a list of existing tfrecord names (might be empty)
         """
         data_length = len(data)
         for i in tfrecord_ids:
@@ -97,6 +98,10 @@ class TFRecordWriter:
             # find data range for current tfrecord id
             current_data = data[i * self.record_length: (i + 1) * self.record_length]
             current_tfrecord_name = parent_path + '/{}_{}.tfrecord'.format(i * self.record_length, min((i + 1) * self.record_length, data_length))
+
+            # if there is already a record with that name, assume that the saved one is correct and move to next chunk of data
+            if current_tfrecord_name in existing_records:
+                continue
 
             # itarate over data in single chunk
             with tf.python_io.TFRecordWriter(current_tfrecord_name) as writer:
@@ -119,9 +124,28 @@ class TFRecordWriter:
 
                     writer.write(example.SerializeToString())
 
+    def _find_existinig_records(self, path):
+        """
+        Checks if any records exist in the given path and asserts that their lengths match the length of currently processed tfrecords (otherwise exception
+        is raised)
+        :param path: path to the folder with tfrecords
+        :return: a list of existing tfrecords (might be empty)
+        """
+        existing_records = [os.path.join(path, tfrecord) for tfrecord in os.listdir(path)]
+
+        if existing_records:
+            sample_record = existing_records[0].split('/')[-1].rstrip('.tfrecord')  # get only record range
+            record_length = int(sample_record.split('_')[1]) - int(sample_record.split('_')[0])
+            if record_length != self.record_length:
+                raise Exception('The length of saved tfrecords does not match the length you specified now! Please change the length or remove dataset')
+
+        return existing_records
+
     def generate_tfrecords(self, data, suffix, dataset_name, num_parallel_runs=None):
         """
         Creates train and val datasets in the format of TF records.
+        Also tries to continue generating in case of interruption. Please note, however, that this function cannot ensure integrity of tfrecords being processed
+        during interruption. You need to remove such records by hand (they might be recognized by their abnormally small size, for example).
         :param data: list of pairs (dir_name/sequence_name, class_id/class_ids)
         :param suffix: root path to the directory where datasets will be stored, must be either 'train' or 'val'
         :param dataset_name: name of the dataset, only for printing purposes
@@ -134,6 +158,9 @@ class TFRecordWriter:
         parent_path = os.path.join(self.root_dir, suffix)
         os.makedirs(parent_path, exist_ok=True)
 
+        # check if there are any existing tfrecords
+        existing_tfrecords = self._find_existinig_records(parent_path)
+
         # compute chunks of datas
         num_processes = num_parallel_runs if num_parallel_runs is not None else cpu_count()
         tfrecord_chunks, total_tfrecords = self._split_data_into_chunks(data, num_processes)
@@ -143,7 +170,8 @@ class TFRecordWriter:
         lock = Lock()
         processes = []
         for chunk in tfrecord_chunks:
-            proc = Process(target=self.write_tfrecord, args=(data, chunk, record_counter, lock, parent_path, total_tfrecords, dataset_name, suffix))
+            proc = Process(target=self.write_tfrecord,
+                           args=(data, chunk, record_counter, lock, parent_path, total_tfrecords, dataset_name, suffix, existing_tfrecords))
             processes.append(proc)
             proc.start()
         for proc in processes:
@@ -340,7 +368,6 @@ class IsolatedSequenceProvider:
     def _define_dataset_pipeline(self, tfrecord_paths):
         """
         Defines TF Dataset API for given data
-        :param num_parallel: number of parallel calls of 'map' functions in the dataset
         :param tfrecord_paths: paths of tfrecords
         """
         num_parallel = cpu_count()

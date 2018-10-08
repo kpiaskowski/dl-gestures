@@ -1,8 +1,8 @@
 import os
-
+import tensorflow as tf
 import cv2
 import numpy as np
-import tensorflow as tf
+from tensorflow.python.framework.errors_impl import DataLossError
 
 from dataprovider.provider import IsolatedSequenceProvider, TFRecordWriter
 
@@ -86,6 +86,10 @@ if __name__ == '__main__':
                               csv_dir='../../jester/csv',
                               seq_h=100, seq_w=150, seq_l=60,
                               batch_size=3)
+
+    # generation
+    # provider.generate_tfrecords('jester_data')
+
     sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles('jester_data')
 
     with tf.Session() as sess:
@@ -94,11 +98,10 @@ if __name__ == '__main__':
         val_handle = sess.run(val_iterator.string_handle())
 
         # train
-        for i in range(10):
+        for i in range(50):
             seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: train_handle})
-            print('train', seq.shape, cls)
-
+            print('train', i, seq.shape, cls)
         # val
-        for i in range(10):
+        for i in range(50):
             seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
-            print('validation', seq.shape, cls)
+            print('validation', i, seq.shape, cls)
