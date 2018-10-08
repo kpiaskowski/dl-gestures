@@ -67,30 +67,18 @@ class JesterProvider(IsolatedSequenceProvider):
         sequence_tensor = np.array(images, dtype=np.uint8)
         return sequence_tensor
 
-    def generate_tfrecords(self, root_dir):
-        """
-        Generates data in the form of TF records
-        :param root_dir: root directory, where 'train' and 'validation' data will be stored.
-        """
-        # 100 sequences per single TFRecord
-        writer = TFRecordWriter(root_dir, record_length=100, seq_reading_func=self._read_sequence, is_isolated=True)
-
-        writer.generate_tfrecords(self._train_data, 'train', 'Jester')
-        writer.generate_tfrecords(self._val_data, 'val', 'Jester')
-
-
 # only for looking how to run dataset and get data
 if __name__ == '__main__':
-    provider = JesterProvider(data_dir='../../jester/data',
-                              csv_dir='../../jester/csv',
-                              seq_h=100, seq_w=150, seq_l=60,
-                              batch_size=3)
-
     parser = argparse.ArgumentParser(description='Generate TFRecords related to the Jester dataset')
     parser.add_argument('--data_dir', help='path to the data where parent folder, where Jester folders with png images are stored', default='../../jester/data')
     parser.add_argument('--csv_dir', help='path to the data where parent folder, where Jester csv files are stored', default='../../jester/csv')
     parser.add_argument('--tfrecords_path', help='a path where TFRecords will be stored')
     args = parser.parse_args()
+
+    provider = JesterProvider(data_dir=args.data_dir,
+                              csv_dir=args.csv_dir,
+                              seq_h=100, seq_w=150, seq_l=60,
+                              batch_size=3)
 
     if args.tfrecords_path is not None:
         provider.generate_tfrecords(args.tfrecords_path)
@@ -112,3 +100,20 @@ if __name__ == '__main__':
     #     for i in range(5):
     #         seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
     #         print('validation', i, seq.shape, cls)
+
+
+"""
+def generate_tfrecords(self, root_dir, train_data, val_data, dataset_name):
+"""
+# Generates data in the form of TF records
+# :param train_data: training data, as list of pairs (path, class_id), where path could be utilized by self.read_sequence
+# :param val_data: validation data, as list of pairs (path, class_id), where path could be utilized by self.read_sequence
+# :param dataset_name: name of the dataset, just for printing purposes
+# :param root_dir: root directory, where 'train' and 'validation' data will be stored.
+"""
+# 100 sequences per single TFRecord
+writer = TFRecordWriter(root_dir, record_length=100, read_sequence=self.read_sequence, is_isolated=self.is_isolated)
+
+writer.generate_tfrecords(train_data, 'train', dataset_name)
+writer.generate_tfrecords(val_data, 'val', dataset_name)
+"""
