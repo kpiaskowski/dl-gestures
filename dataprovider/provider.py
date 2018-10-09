@@ -438,7 +438,7 @@ class IsolatedSequenceProvider:
         # :param root_dir: root directory, where 'train' and 'validation' data will be stored.
         """
         # 100 sequences per single TFRecord
-        writer = TFRecordWriter(root_dir, record_length=100, seq_reading_func=self._read_sequence, is_isolated=True)
+        writer = TFRecordWriter(root_dir, record_length=50, seq_reading_func=self._read_sequence, is_isolated=True)
 
         writer.generate_tfrecords(self._train_data, 'train', dataset_name)
         writer.generate_tfrecords(self._val_data, 'val', dataset_name)

@@ -65,18 +65,6 @@ class ChalearnIsolatedProvider(IsolatedSequenceProvider):
                 data.append((path, class_id))
         return data
 
-    # def generate_tfrecords(self, root_dir):
-    #     """
-    #     Generates data in the form of TF records
-    #     :param root_dir: root directory, where 'train' and 'validation' data will be stored.
-    #     """
-    #     # 100 sequences per single TFRecord
-    #     writer = TFRecordWriter(root_dir, record_length=100, seq_reading_func=self._read_sequence, is_isolated=True)
-    #
-    #     writer.generate_tfrecords(self._train_data, 'train', 'Isolated Chalearn')
-    #     writer.generate_tfrecords(self._val_data, 'val', 'Isolated Chalearn')
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate TFRecords related to the Jester dataset')
     parser.add_argument('--root_dir', help='path to directory where "train" folder and "train_list.txt" file are stored', default='../../chalearn_isolated')
@@ -90,20 +78,20 @@ if __name__ == '__main__':
     if args.tfrecords_path is not None:
         provider.generate_tfrecords(args.tfrecords_path, 'Isolated Chalearn')
 
-    # # uncomment to check how to fetch data from dataset (and verify wheter it works)
-    # data_dir = "chalearn"
-    # sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
-    #
-    # with tf.Session() as sess:
-    #     # initialize datasets
-    #     train_handle = sess.run(train_iterator.string_handle())
-    #     val_handle = sess.run(val_iterator.string_handle())
-    #
-    #     # train
-    #     for i in range(5):
-    #         seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: train_handle})
-    #         print('train', i, seq.shape, cls)
-    #     # val
-    #     for i in range(5):
-    #         seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
-    #         print('validation', i, seq.shape, cls)
+    # uncomment to check how to fetch data from dataset (and verify wheter it works)
+    data_dir = '/media/kpiaskowski/Seagate Backup Plus Drive/Karol_datasets/chalearn_isolated'
+    sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
+
+    with tf.Session() as sess:
+        # initialize datasets
+        train_handle = sess.run(train_iterator.string_handle())
+        val_handle = sess.run(val_iterator.string_handle())
+
+        # train
+        for i in range(5):
+            seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: train_handle})
+            print('train', i, seq.shape, cls)
+        # val
+        for i in range(5):
+            seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
+            print('validation', i, seq.shape, cls)
