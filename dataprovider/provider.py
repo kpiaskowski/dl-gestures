@@ -420,6 +420,11 @@ class IsolatedSequenceProvider:
         iterator = tf.data.Iterator.from_string_handle(handle, train_dataset.output_types, train_dataset.output_shapes)
         sequence_tensor, class_id = iterator.get_next()
 
+        # tensorflow has problems with passing info about dimensionality, so a manual intervention is needed
+        batch_size = tf.shape(sequence_tensor)[0]
+        class_id = tf.reshape(class_id, [batch_size])
+        sequence_tensor = tf.reshape(sequence_tensor, [batch_size, self.seq_l, self.seq_h, self.seq_w, 3])
+
         train_iterator = train_dataset.make_one_shot_iterator()
         val_iterator = val_dataset.make_one_shot_iterator()
 
