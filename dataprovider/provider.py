@@ -185,9 +185,9 @@ class IsolatedSequenceProvider:
     def __init__(self, seq_h, seq_w, seq_l, batch_size):
         """
         Initializes DataProvider
-        :param seq_h: the height the images in sequence will be resized to
-        :param seq_w: the width the images in sequence will be resized to
-        :param seq_l: the length the sequence will be scaled to
+        :param seq_h: the height the images in sequence will be resized to (online, during training)
+        :param seq_w: the width the images in sequence will be resized to (online, during training)
+        :param seq_l: the length the sequence will be scaled to (online, during training)
         :param batch_size: size of batch
         """
         self.seq_h = seq_h

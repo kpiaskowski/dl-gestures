@@ -3,39 +3,42 @@ import os
 import tensorflow as tf
 import cv2
 import numpy as np
-from provider import IsolatedSequenceProvider
+
+if __name__ == '__main__':
+    from provider import IsolatedSequenceProvider
+else:
+    from dataprovider.provider import IsolatedSequenceProvider
 
 
 class JesterProvider(IsolatedSequenceProvider):
-    def __init__(self, data_dir, csv_dir, seq_h, seq_w, seq_l, batch_size):
+    def __init__(self, seq_h, seq_w, seq_l, batch_size):
         """
         Initializes Jester dataset.
-        :param data_dir: path to root directory with data
-        :param csv_dir: path to root directory with csv_files
         :param seq_h: the height the images in sequence will be resized to
         :param seq_w: the width the images in sequence will be resized to
         :param seg_l: the length the sequence will be scaled to
         :param batch_size: size of batch
         """
         super().__init__(seq_h, seq_w, seq_l, batch_size)
-        self._data_dir = data_dir
+        self._classes = ['Doing other things', 'Drumming Fingers', 'No gesture', 'Pulling Hand In', 'Pulling Two Fingers In', 'Pushing Hand Away', 'Pushing Two Fingers Away',
+                         'Rolling Hand Backward', 'Rolling Hand Forward', 'Shaking Hand', 'Sliding Two Fingers Down', 'Sliding Two Fingers Left', 'Sliding Two Fingers Right',
+                         'Sliding Two Fingers Up', 'Stop Sign', 'Swiping Down', 'Swiping Left', 'Swiping Right', 'Swiping Up', 'Thumb Down', 'Thumb Up', 'Turning Hand Clockwise',
+                         'Turning Hand Counterclockwise', 'Zooming In With Full Hand', 'Zooming In With Two Fingers', 'Zooming Out With Full Hand', 'Zooming Out With Two Fingers']
 
-        # read classes available in the Jester dataset
-        self._classes = self._read_classes(os.path.join(csv_dir, 'jester-v1-labels.csv'))
+    def convert_to_tfrecords(self, data_dir, csv_dir, tfrecords_path):
+        """
+        Converts native data from dataset to TFRecords.
+        :param data_dir: path to root directory with data
+        :param csv_dir: path to root directory with csv_files
+        :param tfrecords_path: path to the parent directory, where tfrecords will be stored
+        """
+        self._data_dir = data_dir
 
         # generate train and validation pairs of (image name, label)
         self._train_data = self._match_names_labels(csv_path=os.path.join(csv_dir, 'jester-v1-train.csv'))
         self._val_data = self._match_names_labels(csv_path=os.path.join(csv_dir, 'jester-v1-validation.csv'))
 
-    def _read_classes(self, csv_path):
-        """
-        Creates a list of classes available in Jester dataset.
-        :param csv_path: path to the csv file describing classes
-        :return: a list of Jester classes
-        """
-        with open(csv_path, 'r') as f:
-            classes = sorted([name.rstrip('\n') for name in f.readlines()])
-            return classes
+        super().generate_tfrecords(tfrecords_path, 'Jester')
 
     def _match_names_labels(self, csv_path):
         """
@@ -76,28 +79,26 @@ if __name__ == '__main__':
     parser.add_argument('--tfrecords_path', help='a path where TFRecords will be stored')
     args = parser.parse_args()
 
-    provider = JesterProvider(data_dir=args.data_dir,
-                              csv_dir=args.csv_dir,
-                              seq_h=100, seq_w=150, seq_l=60,
-                              batch_size=3)
+    provider = JesterProvider(seq_h=100, seq_w=150, seq_l=60, batch_size=3)
 
-    if args.tfrecords_path is not None:
-        provider.generate_tfrecords(args.tfrecords_path, 'Jester')
+    # generate
+    if all(arg is not None for arg in [args.tfrecords_path, args.csv_dir, args.data_dir]):
+        provider.convert_to_tfrecords(data_dir=args.data_dir, csv_dir=args.csv_dir, tfrecords_path=args.tfrecords_path)
 
-    # uncomment to check how to fetch data from dataset (and verify wheter it works)
-    data_dir = '/media/kpiaskowski/Seagate Backup Plus Drive/Karol_datasets/jester_data' # path to where tfrecords are stored
-    sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
-
-    with tf.Session() as sess:
-        # initialize datasets
-        train_handle = sess.run(train_iterator.string_handle())
-        val_handle = sess.run(val_iterator.string_handle())
-
-        # train
-        for i in range(5):
-            seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: train_handle})
-            print('train', i, seq.shape, cls)
-        # val
-        for i in range(5):
-            seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
-            print('validation', i, seq.shape, cls)
+    # # uncomment to check how to fetch data from dataset (and verify wheter it works)
+    # data_dir = 'jester_test'  # path to where tfrecords are stored
+    # sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
+    #
+    # with tf.Session() as sess:
+    #     # initialize datasets
+    #     train_handle = sess.run(train_iterator.string_handle())
+    #     val_handle = sess.run(val_iterator.string_handle())
+    #
+    #     # train
+    #     for i in range(5):
+    #         seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: train_handle})
+    #         print('train', i, seq.shape, cls)
+    #     # val
+    #     for i in range(5):
+    #         seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
+    #         print('validation', i, seq.shape, cls)

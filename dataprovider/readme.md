@@ -26,11 +26,7 @@ They can be run from command line:
     - Chalearn Isolated dataset contains two main items: `train` folder, containing data (unfortunately, 
       no val and test data with labels is provided for Chalearn) and `train_list.txt` file, describing labels. 
       
-The generation scripts could be also used to test wheter the data was generated correctly. In order to do so, just run them without
-specyfing `--tfrecords_path`. IMPORTANT: you will need to manually specify the path to the data (generated tfrecords) in 
-`data_dir` variable.
-
 #### How to use dataproviders
-The example usage of dataproviders is shown in the `main` function of each generation script. The scipts can be run either from IDE or
-from command line (in order to do so, just run them without specyfing `--tfrecords_path`). Please note, that `data_dir` variable must be correctly specified.
+The example usage of dataproviders is shown in the `main` function of each generation script (the code in __main__ function is commented - just uncomment it). The scipts can be run either from IDE or
+from command line (in order to do so, just run them without specyfing any argument). Please note, that `data_dir` variable must be correctly specified.
 For for training, the procedure is identical. 
