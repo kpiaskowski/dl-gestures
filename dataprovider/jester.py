@@ -1,9 +1,9 @@
+import argparse
 import os
 import tensorflow as tf
 import cv2
 import numpy as np
-import argparse
-from provider import IsolatedSequenceProvider, TFRecordWriter
+from provider import IsolatedSequenceProvider
 
 
 class JesterProvider(IsolatedSequenceProvider):
@@ -84,20 +84,20 @@ if __name__ == '__main__':
     if args.tfrecords_path is not None:
         provider.generate_tfrecords(args.tfrecords_path, 'Jester')
 
-    # # uncomment to check how to fetch data from dataset (and verify wheter it works)
-    # data_dir = "jester"
-    # sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
-    #
-    # with tf.Session() as sess:
-    #     # initialize datasets
-    #     train_handle = sess.run(train_iterator.string_handle())
-    #     val_handle = sess.run(val_iterator.string_handle())
-    #
-    #     # train
-    #     for i in range(5):
-    #         seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: train_handle})
-    #         print('train', i, seq.shape, cls)
-    #     # val
-    #     for i in range(5):
-    #         seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
-    #         print('validation', i, seq.shape, cls)
+    # uncomment to check how to fetch data from dataset (and verify wheter it works)
+    data_dir = '/media/kpiaskowski/Seagate Backup Plus Drive/Karol_datasets/jester_data' # path to where tfrecords are stored
+    sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
+
+    with tf.Session() as sess:
+        # initialize datasets
+        train_handle = sess.run(train_iterator.string_handle())
+        val_handle = sess.run(val_iterator.string_handle())
+
+        # train
+        for i in range(5):
+            seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: train_handle})
+            print('train', i, seq.shape, cls)
+        # val
+        for i in range(5):
+            seq, cls = sess.run([sequence_tensor, class_id], feed_dict={handle: val_handle})
+            print('validation', i, seq.shape, cls)

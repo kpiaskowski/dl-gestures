@@ -1,9 +1,10 @@
+import argparse
 import os
-import tensorflow as tf
+
 import cv2
 import numpy as np
-import argparse
-from provider import IsolatedSequenceProvider, TFRecordWriter
+import tensorflow as tf
+from provider import IsolatedSequenceProvider
 
 
 class ChalearnIsolatedProvider(IsolatedSequenceProvider):
@@ -65,9 +66,11 @@ class ChalearnIsolatedProvider(IsolatedSequenceProvider):
                 data.append((path, class_id))
         return data
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate TFRecords related to the Jester dataset')
     parser.add_argument('--root_dir', help='path to directory where "train" folder and "train_list.txt" file are stored', default='../../chalearn_isolated')
+    parser.add_argument('--tfrecords_path', help='a path where TFRecords will be stored')
     parser.add_argument('--tfrecords_path', help='a path where TFRecords will be stored')
     args = parser.parse_args()
 
@@ -79,7 +82,7 @@ if __name__ == '__main__':
         provider.generate_tfrecords(args.tfrecords_path, 'Isolated Chalearn')
 
     # uncomment to check how to fetch data from dataset (and verify wheter it works)
-    data_dir = '/media/kpiaskowski/Seagate Backup Plus Drive/Karol_datasets/chalearn_isolated'
+    data_dir = '/media/kpiaskowski/Seagate Backup Plus Drive/Karol_datasets/chalearn_isolated' # path to where tfrecords are stored
     sequence_tensor, class_id, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
 
     with tf.Session() as sess:
