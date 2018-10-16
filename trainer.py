@@ -2,6 +2,7 @@ import argparse
 import inspect
 import os
 import pathlib
+import sys
 from shutil import copyfile
 
 import tensorflow as tf
@@ -26,9 +27,32 @@ def dump_training_params(path, args, dataprovider, network):
 
     dataprovider_path = inspect.getfile(dataprovider.__class__)
     network_path = inspect.getfile(network.__class__)
+    trainer_path = __file__
 
     copyfile(dataprovider_path, os.path.join(path, dataprovider_path.split('/')[-1]))
     copyfile(network_path, os.path.join(path, network_path.split('/')[-1]))
+    copyfile(trainer_path, os.path.join(path, trainer_path.split('/')[-1]))
+
+
+def try_restore(save_path, sess, saver):
+    """
+    Checks whethere there is an existing checkpoint with saved weights and tries to restore it. Also computes the latest saved global step, which could be used later as an
+    offset to the current step counter
+    :param save_path: path where checkpoints should be located
+    :param sess: tensorflow session
+    :param saver: instance of saver (for restoring)
+    :return: offset as number (0 if no checkpoint was found)
+    """
+    ckpt = tf.train.latest_checkpoint(save_path)
+    if ckpt is not None:
+        # find latest saved global_step, which will be used as an offset to the current step counter
+        offset = int(ckpt.split('-')[-1])
+        saver.restore(sess, ckpt)
+        # try to load checkpoint
+        print('Loaded model from {}'.format(ckpt))
+    else:
+        offset = 0
+    return offset
 
 
 def run(args):
@@ -85,26 +109,36 @@ def run(args):
         val_handle = sess.run(val_iterator.string_handle())
         sess.run(tf.global_variables_initializer())
 
-        i = 0
+        # instead of relying on chance to hit exact step during saving, let's always check wheter step // save_ckpt yields the same number as in previous step. If not,
+        # save model and update the result of the last_saved_idx
+        step = try_restore(save_path, sess, saver)
+        last_saved_idx = step // save_ckpt
         while True:
             try:
-                if i % save_ckpt == 0 and i > 0:
-                    saver.save(sess, global_step=i, save_path=save_path + '/model.ckpt')
-                    print('Network saved at step {}'.format(i))
+                if step // save_ckpt != last_saved_idx and step > 0:
+                    last_saved_idx = step // save_ckpt
+                    saver.save(sess, global_step=step, save_path=save_path + '/model.ckpt')
+                    print('Network saved at step {}'.format(step))
 
                 # training
                 for k in range(validation_ckpt):
                     sess.run(train_op, feed_dict={handle: train_handle, is_training: True})
-                    i += 1
+                    step += 1
 
                 # printing stats
                 train_loss, train_acc, train_summary = sess.run([loss, accuracy, merged], feed_dict={handle: train_handle, is_training: False})
                 val_loss, val_acc, val_summary = sess.run([loss, accuracy, merged], feed_dict={handle: val_handle, is_training: False})
-                print('Iteration {}'.format(i))
+                print('Iteration {}'.format(step))
                 print('Training,   loss: {:.6f}, accuracy: {:.2f}%'.format(train_loss, train_acc * 100))
                 print('Validation, loss: {:.6f}, accuracy: {:.2f}%'.format(val_loss, val_acc * 100))
-                train_writer.add_summary(train_summary, i)
-                val_writer.add_summary(val_summary, i)
+                train_writer.add_summary(train_summary, step)
+                val_writer.add_summary(val_summary, step)
+            except KeyboardInterrupt:
+                # attempt to save model on exit
+                print('Keyboard interrupt, trying to save model...')
+                saver.save(sess, global_step=step, save_path=save_path + '/model.ckpt')
+                print('Model saved!')
+                sys.exit(0)
             except Exception as e:
                 print(e)
 
