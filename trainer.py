@@ -87,23 +87,26 @@ def run(args):
 
         i = 0
         while True:
-            if i % save_ckpt == 0 and i > 0:
-                saver.save(sess, global_step=i, save_path=save_path + '/model.ckpt')
-                print('Network saved at step {}'.format(i))
+            try:
+                if i % save_ckpt == 0 and i > 0:
+                    saver.save(sess, global_step=i, save_path=save_path + '/model.ckpt')
+                    print('Network saved at step {}'.format(i))
 
-            # training
-            for k in range(validation_ckpt):
-                sess.run(train_op, feed_dict={handle: train_handle, is_training: True})
-                i += 1
+                # training
+                for k in range(validation_ckpt):
+                    sess.run(train_op, feed_dict={handle: train_handle, is_training: True})
+                    i += 1
 
-            # printing stats
-            train_loss, train_acc, train_summary = sess.run([loss, accuracy, merged], feed_dict={handle: train_handle, is_training: False})
-            val_loss, val_acc, val_summary = sess.run([loss, accuracy, merged], feed_dict={handle: val_handle, is_training: False})
-            print('Iteration {}'.format(i))
-            print('Training,   loss: {:.6f}, accuracy: {:.2f}%'.format(train_loss, train_acc * 100))
-            print('Validation, loss: {:.6f}, accuracy: {:.2f}%'.format(val_loss, val_acc * 100))
-            train_writer.add_summary(train_summary, i)
-            val_writer.add_summary(val_summary, i)
+                # printing stats
+                train_loss, train_acc, train_summary = sess.run([loss, accuracy, merged], feed_dict={handle: train_handle, is_training: False})
+                val_loss, val_acc, val_summary = sess.run([loss, accuracy, merged], feed_dict={handle: val_handle, is_training: False})
+                print('Iteration {}'.format(i))
+                print('Training,   loss: {:.6f}, accuracy: {:.2f}%'.format(train_loss, train_acc * 100))
+                print('Validation, loss: {:.6f}, accuracy: {:.2f}%'.format(val_loss, val_acc * 100))
+                train_writer.add_summary(train_summary, i)
+                val_writer.add_summary(val_summary, i)
+            except Exception as e:
+                print(e)
 
 
 if __name__ == '__main__':
