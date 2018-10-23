@@ -182,9 +182,10 @@ class TFRecordWriter:
 class IsolatedSequenceProvider:
     """Class for providing data for isolated sequences (not continuous)"""
 
-    def __init__(self, seq_h, seq_w, seq_l, batch_size):
+    def __init__(self, seq_h, seq_w, seq_l, batch_size, fake_continuous=False):
         """
         Initializes DataProvider
+        :param fake_continuous: True/False - specifies, wheter the dataset should imitate a continuous data, by tiling class_id of sequence to match sequence length
         :param seq_h: the height the images in sequence will be resized to (online, during training)
         :param seq_w: the width the images in sequence will be resized to (online, during training)
         :param seq_l: the length the sequence will be scaled to (online, during training)
@@ -204,12 +205,26 @@ class IsolatedSequenceProvider:
         self._train_data = None
         self._val_data = None
 
+        # processing functions that depend on fake_continuous
+        self._maybe_expand_classes = self._fake_multiple_classes if fake_continuous else lambda x, y: (x, y)
+        self._pad = self._pad_all_data if fake_continuous else self._pad_sequnce_only
+        self._fix_class_shape = self._fix_continuous_class_shape if fake_continuous else self._fix_single_class_shape
+
     def _match_names_labels(self, **kwargs):
         """
         Matches filenames with corresponding labels
         :return: list(filenames, labels) for training set; list(filenames, labels) for validation set
         """
         raise NotImplementedError
+
+    def _fake_multiple_classes(self, sequence_tensor, class_id):
+        """
+        Tiles single class to create a vector [class_id, class_id, class_id...class_id] of length equal to sequence length
+        :param class_id: class_id of the sequence
+        :return: unchanged sequence_tensor, a class_id as a tile vector
+        """
+        length = tf.shape(sequence_tensor)[0]
+        return sequence_tensor, tf.ones(length, tf.int32) * class_id
 
     def _parse_tfrecord(self, example_proto):
         """
@@ -229,6 +244,7 @@ class IsolatedSequenceProvider:
         height = tf.cast(parsed_features['height'], tf.int32)
         width = tf.cast(parsed_features['width'], tf.int32)
         raw_sequence = tf.decode_raw(parsed_features['sequence_bytes'], tf.uint8)
+
         sequence_shape = tf.stack([length, height, width, 3])
         sequence_tensor = tf.reshape(raw_sequence, sequence_shape)
 
@@ -291,7 +307,31 @@ class IsolatedSequenceProvider:
 
         return standardized_sequence, class_id
 
-    def _pad_zeros(self, sequence_tensor, class_id):
+    def _pad_all_data(self, sequence_tensor, class_id):
+        """
+        Pads sequence and class_ids (as vector, in case of pseudo continuous data), as opposite to temporal stretching. If data is longer than desired length, it cuts it.
+        Video sequence is padded with zeros, class ids with -1 (because there is a possibility that class_id will be equal to 0
+        :return: standardized sequence, unchanged class_id
+        """
+        shape = tf.shape(sequence_tensor)
+        l = shape[0]
+        h = shape[1]
+        w = shape[2]
+        c = shape[3]
+
+        # tf hack to avoid using ifs - note that remainder might be of length = 0
+        remainder = tf.maximum(self.seq_l - l, 0)
+        seq_padding = tf.zeros([remainder, h, w, c], tf.float32)
+        sequence = tf.concat([sequence_tensor, seq_padding], axis=0)
+        cls_padding = tf.ones([remainder], tf.int32) * -1
+        class_ids = tf.concat([class_id, cls_padding], 0)
+
+        # slice sequence (again tf hack, sequence after slicing might not change at all)
+        sequence = sequence[:self.seq_l, :, :, :]
+        class_ids = class_ids[:self.seq_l]
+        return sequence, class_ids
+
+    def _pad_sequnce_only(self, sequence_tensor, class_id):
         """
         Pads sequence with zeros (as opposite to temporal stretching). If sequence is longer than desired length, it cuts it.
         :return: standardized sequence, unchanged class_id
@@ -391,15 +431,39 @@ class IsolatedSequenceProvider:
         dataset = dataset.map(self._random_temporal_crop, num_parallel_calls=num_parallel)
         dataset = dataset.map(self._stretch_temporally, num_parallel_calls=num_parallel)
 
+        # treat class scalar as vector, if pseudo continuity is set
+        dataset = dataset.map(self._maybe_expand_classes, num_parallel_calls=num_parallel)
+
         # resize to fixed dimensions
         dataset = dataset.map(self._resize_spatially, num_parallel_calls=num_parallel)
-        dataset = dataset.map(self._pad_zeros, num_parallel_calls=num_parallel)
+        dataset = dataset.map(self._pad, num_parallel_calls=num_parallel)
 
         dataset = dataset.shuffle(10)
         dataset = dataset.prefetch(self.batch_size)
         dataset = dataset.batch(self.batch_size)
         dataset = dataset.repeat()
         return dataset
+
+    def _fix_single_class_shape(self, class_tensor, batch_size):
+        """
+        Fixes shape of classes (provided as a single scalar)
+        """
+        return tf.reshape(class_tensor, [batch_size])
+
+    def _fix_shape(self, batch_size, sequence_tensor, class_tensor):
+        """
+        Does final reshape of tensors (it is needed because information about dimension is somehow not passed in dataset api.
+        It simply sets identical shape to both tensors.
+        """
+        class_id = self._fix_class_shape(class_tensor, batch_size)
+        sequence_tensor = tf.reshape(sequence_tensor, [batch_size, self.seq_l, self.seq_h, self.seq_w, 3])
+        return sequence_tensor, class_id
+
+    def _fix_continuous_class_shape(self, class_tensor, batch_size):
+        """
+        Fixes shape of classes (provided as a vector of scalars)
+        """
+        return tf.reshape(class_tensor, [batch_size, self.seq_l])
 
     def create_dataset_handles(self, root_dir):
         """
@@ -422,8 +486,7 @@ class IsolatedSequenceProvider:
 
         # tensorflow has problems with passing info about dimensionality, so a manual intervention is needed
         batch_size = tf.shape(sequence_tensor)[0]
-        class_id = tf.reshape(class_id, [batch_size])
-        sequence_tensor = tf.reshape(sequence_tensor, [batch_size, self.seq_l, self.seq_h, self.seq_w, 3])
+        sequence_tensor, class_id = self._fix_shape(batch_size, sequence_tensor, class_id)
 
         train_iterator = train_dataset.make_one_shot_iterator()
         val_iterator = val_dataset.make_one_shot_iterator()

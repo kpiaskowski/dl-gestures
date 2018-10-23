@@ -3,7 +3,6 @@ import os
 
 import cv2
 import numpy as np
-import tensorflow as tf
 
 if __name__ == '__main__':
     from provider import IsolatedSequenceProvider
@@ -12,15 +11,16 @@ else:
 
 
 class ChalearnIsolatedProvider(IsolatedSequenceProvider):
-    def __init__(self, seq_h, seq_w, seq_l, batch_size):
+    def __init__(self, seq_h, seq_w, seq_l, batch_size, fake_continuous=False):
         """
         Initializes Chalearn dataset with isolated sequences. Due to lack of labelled val and test data for Chalearn, splits it with 9:1 ratio.
         :param seq_h: the height the images in sequence will be resized to
         :param seq_w: the width the images in sequence will be resized to
         :param seg_l: the length the sequence will be scaled to
+        :param fake_continuous: True/False - specifies, wheter the dataset should imitate a continuous data, by tiling class_id of sequence to match sequence length
         :param batch_size: size of batch
         """
-        super().__init__(seq_h, seq_w, seq_l, batch_size)
+        super().__init__(seq_h, seq_w, seq_l, batch_size, fake_continuous)
 
     def convert_to_tfrecords(self, root_dir, tfrecords_path):
         """

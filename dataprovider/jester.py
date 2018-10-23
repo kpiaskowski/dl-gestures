@@ -11,15 +11,16 @@ else:
 
 
 class JesterProvider(IsolatedSequenceProvider):
-    def __init__(self, seq_h, seq_w, seq_l, batch_size):
+    def __init__(self, seq_h, seq_w, seq_l, batch_size, fake_continuous=False):
         """
         Initializes Jester dataset.
         :param seq_h: the height the images in sequence will be resized to
         :param seq_w: the width the images in sequence will be resized to
         :param seg_l: the length the sequence will be scaled to
         :param batch_size: size of batch
+        :param fake_continuous: True/False - specifies, wheter the dataset should imitate a continuous data, by tiling class_id of sequence to match sequence length
         """
-        super().__init__(seq_h, seq_w, seq_l, batch_size)
+        super().__init__(seq_h, seq_w, seq_l, batch_size, fake_continuous)
         self._classes = ['Doing other things', 'Drumming Fingers', 'No gesture', 'Pulling Hand In', 'Pulling Two Fingers In', 'Pushing Hand Away', 'Pushing Two Fingers Away',
                          'Rolling Hand Backward', 'Rolling Hand Forward', 'Shaking Hand', 'Sliding Two Fingers Down', 'Sliding Two Fingers Left', 'Sliding Two Fingers Right',
                          'Sliding Two Fingers Up', 'Stop Sign', 'Swiping Down', 'Swiping Left', 'Swiping Right', 'Swiping Up', 'Thumb Down', 'Thumb Up', 'Turning Hand Clockwise',
