@@ -26,7 +26,7 @@ class SimpleLSTMNet:
 
         sequence_lengths = tf.arg_min(labels, -1) if sequence_lengths is None else sequence_lengths
         self._conv_tower = self._convolutional_tower(inputs, training_placeholder)
-        self._lstm_outputs = self._sequential(self._conv_tower, output_size, training_placeholder, sequence_lengths)
+        self._lstm_outputs = self._sequential(self._conv_tower, output_size, training_placeholder, sequence_lengths, hidden_size=2048, num_layers=2)
 
         # dummy label in situation when no label is provided
         # self._loss = self._compute_loss(self._logits, labels)
@@ -106,7 +106,7 @@ class SimpleLSTMNet:
 
             return conv
 
-    def _sequential(self, conv_inputs, output_size, training_placeholder, sequence_lengths, num_layers=4):
+    def _sequential(self, conv_inputs, output_size, training_placeholder, sequence_lengths, hidden_size, num_layers=4):
         """
         Takes output of convolutional tower and passes it through a multilayer LSTM
         :param sequence_lengths: vector containing lengths of sequences in batch
@@ -123,7 +123,6 @@ class SimpleLSTMNet:
             flattened = tf.squeeze(tf.squeeze(conv_inputs, -2), -2)  # it would be nice to use _flatten_ndims, but dynamic rnn requires fully defined shape :(
 
             # only forward LSTMs are used
-            hidden_size = 512
             fw_cells = []
             for i in range(num_layers):
                 fw_cell = tf.nn.rnn_cell.BasicLSTMCell(hidden_size)
@@ -138,8 +137,7 @@ class SimpleLSTMNet:
             outputs, _ = tf.nn.dynamic_rnn(cell=fw_cells,
                                            inputs=flattened,
                                            sequence_length=sequence_lengths,
-                                           dtype=tf.float32,
-                                           parallel_iterations=1500)
+                                           dtype=tf.float32)
 
             return outputs
 
