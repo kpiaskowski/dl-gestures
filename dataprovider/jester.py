@@ -25,7 +25,7 @@ class JesterProvider(IsolatedSequenceProvider):
                          'Rolling Hand Backward', 'Rolling Hand Forward', 'Shaking Hand', 'Sliding Two Fingers Down', 'Sliding Two Fingers Left', 'Sliding Two Fingers Right',
                          'Sliding Two Fingers Up', 'Stop Sign', 'Swiping Down', 'Swiping Left', 'Swiping Right', 'Swiping Up', 'Thumb Down', 'Thumb Up', 'Turning Hand Clockwise',
                          'Turning Hand Counterclockwise', 'Zooming In With Full Hand', 'Zooming In With Two Fingers', 'Zooming Out With Full Hand', 'Zooming Out With Two Fingers']
-        self.num_classes = 27
+        self._num_classes = 27
 
     def convert_to_tfrecords(self, data_dir, csv_dir, tfrecords_path):
         """

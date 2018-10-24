@@ -9,7 +9,7 @@ import tensorflow as tf
 
 from dataprovider.chalearn_isolated import ChalearnIsolatedProvider
 from dataprovider.jester import JesterProvider
-from networks.fixed_length import SimpleConvNet
+from networks.variable_length import SimpleLSTMNet
 
 
 def dump_training_params(path, args, dataprovider, network):
@@ -66,14 +66,14 @@ def run(args):
 
     # choose dataprovider
     if args.dataset_name == 'jester':
-        provider = JesterProvider(seq_h=args.sequence_height, seq_w=args.sequence_width, seq_l=args.sequence_length, batch_size=args.batch_size)
+        provider = JesterProvider(seq_h=args.sequence_height, seq_w=args.sequence_width, seq_l=args.sequence_length, batch_size=args.batch_size, fake_continuous=True)
     elif args.dataset_name == 'chalearn_isolated':
-        provider = ChalearnIsolatedProvider(seq_h=args.sequence_height, seq_w=args.sequence_width, seq_l=args.sequence_length, batch_size=args.batch_size)
-    sequence_tensors, class_ids, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
+        provider = ChalearnIsolatedProvider(seq_h=args.sequence_height, seq_w=args.sequence_width, seq_l=args.sequence_length, batch_size=args.batch_size, fake_continuous=True)
+    sequence_tensors, labels, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
 
     # define model
     is_training = tf.placeholder(tf.bool)
-    network = SimpleConvNet(inputs=sequence_tensors, output_size=provider.num_classes, is_training=is_training, labels=class_ids)
+    network = SimpleLSTMNet(inputs=sequence_tensors, num_classes=provider.num_classes(), training_placeholder=is_training, labels=labels)
 
     # make a snapshot of the training procedure
     dump_training_params(snapshot_path, args, provider, network)
@@ -105,10 +105,11 @@ def run(args):
         val_handle = sess.run(val_iterator.string_handle())
         sess.run(tf.global_variables_initializer())
 
-        # instead of relying on chance to hit exact step during saving, let's always check wheter step // save_ckpt yields the same number as in previous step. If not,
+        # instead of relying on chance to hit exact step during saving, let's always check whether step // save_ckpt yields the same number as in previous step. If not,
         # save model and update the result of the last_saved_idx
         step = try_restore(save_path, sess, saver)
         last_saved_idx = step // save_ckpt
+
         while True:
             try:
                 if step // save_ckpt != last_saved_idx and step > 0:

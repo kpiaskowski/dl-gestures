@@ -204,11 +204,20 @@ class IsolatedSequenceProvider:
         # params that need to be computed in child classes
         self._train_data = None
         self._val_data = None
+        self._num_classes = None
 
         # processing functions that depend on fake_continuous
-        self._maybe_expand_classes = self._fake_multiple_classes if fake_continuous else lambda x, y: (x, y)
-        self._pad = self._pad_all_data if fake_continuous else self._pad_sequnce_only
-        self._fix_class_shape = self._fix_continuous_class_shape if fake_continuous else self._fix_single_class_shape
+        self._fake_continuous = fake_continuous
+        self._maybe_expand_classes = self._fake_multiple_classes if self._fake_continuous else lambda x, y: (x, y)
+        self._pad = self._pad_all_data if self._fake_continuous else self._pad_sequnce_only
+        self._fix_class_shape = self._fix_continuous_class_shape if self._fake_continuous else self._fix_single_class_shape
+
+    def num_classes(self):
+        """
+        Returns number of classes in dataset, depending on wheter it is treated as isolated or pseudocontinuous dataset. In the latter case, an artificial `BLANK` class is added
+        (which is treated as a padding)
+        """
+        return self._num_classes + 1 if self._fake_continuous else self._num_classes
 
     def _match_names_labels(self, **kwargs):
         """
@@ -323,7 +332,7 @@ class IsolatedSequenceProvider:
         remainder = tf.maximum(self.seq_l - l, 0)
         seq_padding = tf.zeros([remainder, h, w, c], tf.float32)
         sequence = tf.concat([sequence_tensor, seq_padding], axis=0)
-        cls_padding = tf.ones([remainder], tf.int32) * -1
+        cls_padding = tf.ones([remainder], tf.int32) * self._num_classes
         class_ids = tf.concat([class_id, cls_padding], 0)
 
         # slice sequence (again tf hack, sequence after slicing might not change at all)

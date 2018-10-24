@@ -21,7 +21,7 @@ class ChalearnIsolatedProvider(IsolatedSequenceProvider):
         :param batch_size: size of batch
         """
         super().__init__(seq_h, seq_w, seq_l, batch_size, fake_continuous)
-        self.num_classes = 250
+        self._num_classes = 250
 
     def convert_to_tfrecords(self, root_dir, tfrecords_path):
         """
