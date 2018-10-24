@@ -7,10 +7,8 @@ from shutil import copyfile
 
 import tensorflow as tf
 
-from constants import jester_num_classes, chalearn_isolated_num_classes
-from dataprovider.jester import JesterProvider
 from dataprovider.chalearn_isolated import ChalearnIsolatedProvider
-
+from dataprovider.jester import JesterProvider
 from networks.fixed_length import SimpleConvNet
 
 
@@ -69,15 +67,13 @@ def run(args):
     # choose dataprovider
     if args.dataset_name == 'jester':
         provider = JesterProvider(seq_h=args.sequence_height, seq_w=args.sequence_width, seq_l=args.sequence_length, batch_size=args.batch_size)
-        num_classes = jester_num_classes
     elif args.dataset_name == 'chalearn_isolated':
         provider = ChalearnIsolatedProvider(seq_h=args.sequence_height, seq_w=args.sequence_width, seq_l=args.sequence_length, batch_size=args.batch_size)
-        num_classes = chalearn_isolated_num_classes
     sequence_tensors, class_ids, iterator, train_iterator, val_iterator, handle = provider.create_dataset_handles(root_dir=data_dir)
 
     # define model
     is_training = tf.placeholder(tf.bool)
-    network = SimpleConvNet(inputs=sequence_tensors, output_size=num_classes, is_training=is_training, labels=class_ids)
+    network = SimpleConvNet(inputs=sequence_tensors, output_size=provider.num_classes, is_training=is_training, labels=class_ids)
 
     # make a snapshot of the training procedure
     dump_training_params(snapshot_path, args, provider, network)
