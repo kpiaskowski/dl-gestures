@@ -96,9 +96,13 @@ def run(args):
         gradients = [None if gradient is None else tf.clip_by_norm(gradient, 3.0) for gradient in gradients]
         train_op = optimizer.apply_gradients(zip(gradients, variables))
 
-    # session params
+    # savers
     save_ckpt = args.save_ckpt
     saver = tf.train.Saver()
+    if args.pretrained_model is not None and args.pretrained_scope is not None:
+        pretrained_saver = tf.train.Saver(var_list=tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=args.pretrained_scope))
+
+    # session params
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
@@ -112,6 +116,9 @@ def run(args):
         # save model and update the result of the last_saved_idx
         step = try_restore(save_path, sess, saver)
         last_saved_idx = step // save_ckpt
+        # try to load pretrained conv model
+        if args.pretrained_model:
+            try_restore(args.pretrained_model, sess, pretrained_saver)
 
         while True:
             try:
@@ -158,6 +165,8 @@ if __name__ == '__main__':
     parser.add_argument('--validation_ckpt', help='how many training steps are being run between validation step', type=int, default=20)
     parser.add_argument('--save_ckpt', help='how many training steps are being run between network saving events', type=int, default=1000)
 
-    args = parser.parse_args()
+    parser.add_argument('--pretrained_model', help='path to the pretrained model', default=None)
+    parser.add_argument('--pretrained_scope', help='name of the variable scope of the pretrained model', default=None)
 
+    args = parser.parse_args()
     run(args)

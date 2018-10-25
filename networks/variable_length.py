@@ -27,7 +27,7 @@ class SimpleLSTMNet:
 
         # model
         conv_tower = self._convolutional_tower(inputs, training_placeholder)
-        self._logits = self._rnn(conv_tower, num_classes, training_placeholder, seq_lengths, hidden_size=2048, num_layers=2)
+        self._logits = self._rnn(conv_tower, num_classes, training_placeholder, seq_lengths, hidden_size=2048, num_layers=3)
 
         # dummy label in situation when no label is provided
         self._loss = self._compute_loss(self._logits, labels, seq_lengths)
