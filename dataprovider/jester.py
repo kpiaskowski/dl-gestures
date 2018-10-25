@@ -21,7 +21,7 @@ class JesterProvider(IsolatedSequenceProvider):
         :param fake_continuous: True/False - specifies, wheter the dataset should imitate a continuous data, by tiling class_id of sequence to match sequence length
         """
         super().__init__(seq_h, seq_w, seq_l, batch_size, fake_continuous)
-        self._classes = ['Doing other things', 'Drumming Fingers', 'No gesture', 'Pulling Hand In', 'Pulling Two Fingers In', 'Pushing Hand Away', 'Pushing Two Fingers Away',
+        self.classes = ['Doing other things', 'Drumming Fingers', 'No gesture', 'Pulling Hand In', 'Pulling Two Fingers In', 'Pushing Hand Away', 'Pushing Two Fingers Away',
                          'Rolling Hand Backward', 'Rolling Hand Forward', 'Shaking Hand', 'Sliding Two Fingers Down', 'Sliding Two Fingers Left', 'Sliding Two Fingers Right',
                          'Sliding Two Fingers Up', 'Stop Sign', 'Swiping Down', 'Swiping Left', 'Swiping Right', 'Swiping Up', 'Thumb Down', 'Thumb Up', 'Turning Hand Clockwise',
                          'Turning Hand Counterclockwise', 'Zooming In With Full Hand', 'Zooming In With Two Fingers', 'Zooming Out With Full Hand', 'Zooming Out With Two Fingers']
@@ -54,7 +54,7 @@ class JesterProvider(IsolatedSequenceProvider):
             """Parses a single line from CSV file from Jester dataset"""
             sequence_id, cls = line.split(';')
             sequence_path = os.path.join(self._data_dir, sequence_id)
-            class_id = self._classes.index(cls.rstrip('\n'))
+            class_id = self.classes.index(cls.rstrip('\n'))
             return sequence_path, class_id
 
         with open(csv_path, 'r') as f:
