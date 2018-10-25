@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.contrib.layers import xavier_initializer, l2_regularizer
 from tensorflow.contrib.rnn import OutputProjectionWrapper
+from tensorflow.contrib.seq2seq import sequence_loss
 
 
 class SimpleLSTMNet:
@@ -22,14 +23,14 @@ class SimpleLSTMNet:
         labels = labels if labels is not None else [0]
         inputs = self._NDHWC_to_NCDHW(inputs) if transpose_to_NDHWC else inputs
         seq_lengths = self.find_sequence_lengths(labels, num_classes)
-
         self._data_format = 'channels_first' if transpose_to_NDHWC else 'channels_last'
 
+        # model
         conv_tower = self._convolutional_tower(inputs, training_placeholder)
         self._logits = self._rnn(conv_tower, num_classes, training_placeholder, seq_lengths, hidden_size=2048, num_layers=2)
 
         # dummy label in situation when no label is provided
-        self._loss = self._compute_loss(self._logits, labels, num_classes)
+        self._loss = self._compute_loss(self._logits, labels, seq_lengths)
         self._accuracy = self._compute_accuracy(self._logits, labels)
 
     def find_sequence_lengths(self, labels, num_classes):
@@ -156,20 +157,18 @@ class SimpleLSTMNet:
 
             return outputs
 
-    def _compute_loss(self, logits, labels, num_classes):
+    def _compute_loss(self, logits, labels, seq_lengths):
         """
         Specifies loss function.
-        :param num_classes: number of classes
+        :param seq_lengths: lengths of sequences
         :param labels: vector of labels, one label for each timestep
         :param logits: outputs from the network (without softmax!)
         :return: output of loss function
         """
         # During loss computation, do not use elements that are beyond the length of the sequence
-        loss_weights = tf.to_int32(tf.not_equal(labels, num_classes - 1))
-
-        # convert labels to one hot vectors (there is something strange with sparse_softmax_cross entropy, causing NANS)
-        one_hot = tf.one_hot(labels, num_classes)
-        loss = tf.losses.softmax_cross_entropy(one_hot, logits, loss_weights)
+        max_len = tf.shape(labels)[1]
+        loss_weights = tf.sequence_mask(seq_lengths, max_len, tf.float32)
+        loss = sequence_loss(logits, labels, loss_weights)
         return loss
 
     def _compute_accuracy(self, logits, labels):

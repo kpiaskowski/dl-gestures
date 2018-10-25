@@ -91,7 +91,10 @@ def run(args):
     validation_ckpt = args.validation_ckpt
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
-        train_op = tf.train.AdamOptimizer(eta).minimize(loss)
+        optimizer = tf.train.AdamOptimizer(eta)
+        gradients, variables = zip(*optimizer.compute_gradients(loss))
+        gradients = [None if gradient is None else tf.clip_by_norm(gradient, 3.0) for gradient in gradients]
+        train_op = optimizer.apply_gradients(zip(gradients, variables))
 
     # session params
     save_ckpt = args.save_ckpt
