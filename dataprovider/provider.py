@@ -106,7 +106,11 @@ class TFRecordWriter:
             # itarate over data in single chunk
             with tf.python_io.TFRecordWriter(current_tfrecord_name) as writer:
                 for name, class_id in current_data:
-                    sequence_tensor = self.seq_reading_func(name)
+                    try:
+                        sequence_tensor = self.seq_reading_func(name)
+                    except Exception as e:
+                        print(e)
+                        continue
 
                     # these data will be needed during data reading in order to apply proper reshaping
                     length = sequence_tensor.shape[0]

@@ -57,11 +57,11 @@ def run(args):
     # paths
     model_name = args.model_name
     data_dir = args.data_dir
-    save_path = os.path.join('../saved_models', model_name)
+    save_path = os.path.join('saved_models', model_name)
     pathlib.Path(save_path).mkdir(parents=True, exist_ok=True)  # writers can create nested directories by themselves, saver can't
-    train_log_path = os.path.join('../logs', model_name, 'train')
-    val_log_path = os.path.join('../logs', model_name, 'val')
-    snapshot_path = os.path.join('../saved_models', model_name, 'snapshot')
+    train_log_path = os.path.join('logs', model_name, 'train')
+    val_log_path = os.path.join('logs', model_name, 'val')
+    snapshot_path = os.path.join('saved_models', model_name, 'snapshot')
     pathlib.Path(snapshot_path).mkdir(parents=True, exist_ok=True)
 
     # choose dataprovider

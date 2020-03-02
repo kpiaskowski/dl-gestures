@@ -21,10 +21,14 @@ class JesterProvider(IsolatedSequenceProvider):
         :param fake_continuous: True/False - specifies, wheter the dataset should imitate a continuous data, by tiling class_id of sequence to match sequence length
         """
         super().__init__(seq_h, seq_w, seq_l, batch_size, fake_continuous)
-        self.classes = ['Doing other things', 'Drumming Fingers', 'No gesture', 'Pulling Hand In', 'Pulling Two Fingers In', 'Pushing Hand Away', 'Pushing Two Fingers Away',
-                         'Rolling Hand Backward', 'Rolling Hand Forward', 'Shaking Hand', 'Sliding Two Fingers Down', 'Sliding Two Fingers Left', 'Sliding Two Fingers Right',
-                         'Sliding Two Fingers Up', 'Stop Sign', 'Swiping Down', 'Swiping Left', 'Swiping Right', 'Swiping Up', 'Thumb Down', 'Thumb Up', 'Turning Hand Clockwise',
-                         'Turning Hand Counterclockwise', 'Zooming In With Full Hand', 'Zooming In With Two Fingers', 'Zooming Out With Full Hand', 'Zooming Out With Two Fingers']
+        self.classes = ['Doing other things', 'Drumming Fingers', 'No gesture', 'Pulling Hand In',
+                        'Pulling Two Fingers In', 'Pushing Hand Away', 'Pushing Two Fingers Away',
+                        'Rolling Hand Backward', 'Rolling Hand Forward', 'Shaking Hand', 'Sliding Two Fingers Down',
+                        'Sliding Two Fingers Left', 'Sliding Two Fingers Right',
+                        'Sliding Two Fingers Up', 'Stop Sign', 'Swiping Down', 'Swiping Left', 'Swiping Right',
+                        'Swiping Up', 'Thumb Down', 'Thumb Up', 'Turning Hand Clockwise',
+                        'Turning Hand Counterclockwise', 'Zooming In With Full Hand', 'Zooming In With Two Fingers',
+                        'Zooming Out With Full Hand', 'Zooming Out With Two Fingers']
         self._num_classes = 27
 
     def convert_to_tfrecords(self, data_dir, csv_dir, tfrecords_path):
@@ -39,6 +43,11 @@ class JesterProvider(IsolatedSequenceProvider):
         # generate train and validation pairs of (image name, label)
         self._train_data = self._match_names_labels(csv_path=os.path.join(csv_dir, 'jester-v1-train.csv'))
         self._val_data = self._match_names_labels(csv_path=os.path.join(csv_dir, 'jester-v1-validation.csv'))
+
+        # make correction for non-existing directories
+        avl_dirs = set(os.listdir(data_dir))
+        self._train_data = [n for n in self._train_data if n[0].split('/')[-1] in avl_dirs]
+        self._val_data = [n for n in self._val_data if n[0].split('/')[-1] in avl_dirs]
 
         super().generate_tfrecords(tfrecords_path, 'Jester')
 
@@ -76,8 +85,11 @@ class JesterProvider(IsolatedSequenceProvider):
 # only for looking how to run dataset and get data
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate TFRecords related to the Jester dataset')
-    parser.add_argument('--data_dir', help='path to the data where parent folder, where Jester folders with png images are stored', default='../../jester/data')
-    parser.add_argument('--csv_dir', help='path to the data where parent folder, where Jester csv files are stored', default='../../jester/csv')
+    parser.add_argument('--data_dir',
+                        help='path to the data where parent folder, where Jester folders with png images are stored',
+                        default='../../jester/data')
+    parser.add_argument('--csv_dir', help='path to the data where parent folder, where Jester csv files are stored',
+                        default='../../jester/csv')
     parser.add_argument('--tfrecords_path', help='a path where TFRecords will be stored')
     args = parser.parse_args()
 
